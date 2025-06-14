@@ -27,11 +27,14 @@ class Trainer:
             for img, _ in self.train_loader:
                 img = img.to(self.device, dtype=torch.float)
                 self.optimizer.zero_grad()
-                x_hat, _, _, embedding_loss = self.model(img)
-                recon_loss = nn.MSELoss()(x_hat, img)
-                loss = recon_loss + embedding_loss
-                train_loss += loss.item()
-                loss.backward()
+                x_hat, _, _, train_embedding_loss = self.model(img)
+                train_recon_loss = nn.MSELoss()(x_hat, img)
+                lossr = train_recon_loss + train_embedding_loss*(i/(self.max_epochs*100))
+                train_loss += lossr.item()
+                lossr.backward()
+                max_norm = 1.0  # 勾配ノルムの最大値
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm)
+                # 勾配クリッピングの実装
                 self.optimizer.step()
 
             # 評価
@@ -40,16 +43,16 @@ class Trainer:
             with torch.no_grad():
                 for img_t, _ in self.test_loader:
                     img = img_t.to(self.device, dtype=torch.float)
-                    x_hat, _, _, train_embedding_loss = self.model(img)
-                    train_recon_loss = nn.MSELoss()(x_hat, img)
-                    loss = train_recon_loss + train_embedding_loss
+                    x_hat, _, _, embedding_loss = self.model(img)
+                    recon_loss = nn.MSELoss()(x_hat, img)
+                    loss = recon_loss + embedding_loss*(i/(self.max_epochs*100))
                     test_loss += loss.item()
 
             # 損失の記録と表示
-            train_loss /= len(self.train_loader.dataset)
-            test_loss /= len(self.test_loader.dataset)
+            train_loss /= len(self.train_loader)
+            test_loss /= len(self.test_loader)
             print(f'epoch {i} train_loss: {train_loss:.5f} test_loss: {test_loss:.5f}')
-            self.run.log({"train_loss": train_loss, "test_loss": test_loss,"train_recon_loss": train_recon_loss, "train_embedding_loss": train_embedding_loss, "test_recon_loss": recon_loss.item(), "test_embedding_loss": embedding_loss.item()})
+            self.run.log({"train_loss": train_loss, "test_loss": test_loss,"train_recon_loss": train_recon_loss.item(), "train_embedding_loss": train_embedding_loss.item(), "test_recon_loss": recon_loss.item(), "test_embedding_loss": embedding_loss.item()})
             self.train_loss_log.append(train_loss)
             self.test_loss_log.append(test_loss)
 
