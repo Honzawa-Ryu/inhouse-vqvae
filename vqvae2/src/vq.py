@@ -114,7 +114,7 @@ class VQLayer(HelperModule):
 
             self.embeddings.data.copy_(self.embeddings_avg / cluster_sizes)
 
-        diff = (q.detach() - x).pow(2).mean()
+        diff = (q.detach() - x).pow(2).mean() - 0.25 * (x.detach() - q).pow(2).mean()
         q = x + (q - x).detach()  # allows gradient flow through `x`
 
         return rearrange(q, "N h w c -> N c h w").to(dtype), embedding_idx, diff
