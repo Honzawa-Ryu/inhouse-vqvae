@@ -105,7 +105,7 @@ def get_image_dataloaders_from_folder(data_dir, batch_size, train_ratio=0.8):
         tuple: trainloaderとtestloader
     """
     transform = transforms.Compose([
-        transforms.Resize((128, 128)),
+        transforms.Resize((256, 256)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # ImageNetの平均と標準偏差で正規化 (一般的な初期値)
     ])
