@@ -40,7 +40,7 @@ class VQLayer(HelperModule):
         in_dim: int,
         embedding_dim: int,
         codebook_size: int,
-        decay: float = 0.99,
+        decay: float = 0.999,
         eps: float = 1e-5,
         embedding_dtype: torch.dtype = torch.float32,
         init_type: Literal["normal", "kaiming_uniform"] = "kaiming_uniform",
