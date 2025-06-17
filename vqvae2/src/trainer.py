@@ -29,7 +29,7 @@ class Trainer:
                 self.optimizer.zero_grad()
                 x_hat, _, _, train_embedding_loss = self.model(img)
                 train_recon_loss = nn.MSELoss()(x_hat, img)
-                lossr = train_recon_loss + train_embedding_loss*(i/(self.max_epochs*100))
+                lossr = train_recon_loss + train_embedding_loss*(i/(self.max_epochs*100))*0
                 train_loss += lossr.item()
                 lossr.backward()
                 max_norm = 1.0  # 勾配ノルムの最大値
@@ -45,7 +45,7 @@ class Trainer:
                     img = img_t.to(self.device, dtype=torch.float)
                     x_hat, _, _, embedding_loss = self.model(img)
                     recon_loss = nn.MSELoss()(x_hat, img)
-                    loss = recon_loss + embedding_loss*(i/(self.max_epochs*100))
+                    loss = recon_loss + embedding_loss*(i/(self.max_epochs*100))*0
                     test_loss += loss.item()
 
             # 損失の記録と表示
