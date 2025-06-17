@@ -24,25 +24,39 @@ class DataSet(Dataset):
             img = self.transform(img)
         return img, label
 
+# def get_mnist_dataloaders(batch_size):
+#     transform = transforms.Compose(
+#         [transforms.ToTensor(),
+#          transforms.Normalize((0.5,), (0.5,))]
+#     )
+
+#     train_dataset = datasets.MNIST(root='VQVAE/data', train=True, download=True, transform=transforms.ToTensor())
+#     test_dataset = datasets.MNIST(root='VQVAE/data', train=False, transform=transforms.ToTensor())
+
+#     x_train = train_dataset.data.float() / 255
+#     y_train = F.one_hot(train_dataset.targets, 10).float()
+#     x_test = test_dataset.data.float() / 255
+#     y_test = F.one_hot(test_dataset.targets, 10).float()
+
+#     trainset = DataSet([x_train, y_train], transform=transform)
+#     testset = DataSet([x_test, y_test], transform=transform)
+
+#     trainloader = DataLoader(trainset, batch_size=batch_size, drop_last=True, shuffle=True, num_workers=0)
+#     testloader = DataLoader(testset, batch_size=batch_size, drop_last=False, shuffle=False, num_workers=0)
+
+#     return trainloader, testloader
+
 def get_mnist_dataloaders(batch_size):
     transform = transforms.Compose(
         [transforms.ToTensor(),
          transforms.Normalize((0.5,), (0.5,))]
     )
 
-    train_dataset = datasets.MNIST(root='VQVAE/data', train=True, download=True, transform=transforms.ToTensor())
-    test_dataset = datasets.MNIST(root='VQVAE/data', train=False, transform=transforms.ToTensor())
+    train_dataset = datasets.MNIST(root='vqvae2/data', train=True, download=True, transform=transform)
+    test_dataset = datasets.MNIST(root='vqvae2/data', train=False, transform=transform)
 
-    x_train = train_dataset.data.reshape(-1, 784).float() / 255
-    y_train = F.one_hot(train_dataset.targets, 10).float()
-    x_test = test_dataset.data.reshape(-1, 784).float() / 255
-    y_test = F.one_hot(test_dataset.targets, 10).float()
-
-    trainset = DataSet([x_train, y_train], transform=transform)
-    testset = DataSet([x_test, y_test], transform=transform)
-
-    trainloader = DataLoader(trainset, batch_size=batch_size, drop_last=True, shuffle=True, num_workers=0)
-    testloader = DataLoader(testset, batch_size=batch_size, drop_last=False, shuffle=False, num_workers=0)
+    trainloader = DataLoader(train_dataset, batch_size=batch_size, drop_last=True, shuffle=True, num_workers=0, pin_memory=True)
+    testloader = DataLoader(test_dataset, batch_size=batch_size, drop_last=False, shuffle=False, num_workers=0, pin_memory=True)
 
     return trainloader, testloader
 
@@ -59,7 +73,7 @@ class DataSet(Dataset):
         if self.transform:
             # transformはPIL Imageオブジェクトを期待するので、必要に応じて変換します
             # MNISTデータはすでにTensorなので、ここでは変換しません
-            pass
+            sample[0] = self.transform(sample[0])
         return sample
 
 class SimpleImageDataset(Dataset):
