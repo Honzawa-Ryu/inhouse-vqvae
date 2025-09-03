@@ -6,9 +6,10 @@ from torchvision import datasets, transforms
 from model.model import MLP  # model.pyからMLPクラスをインポート
 import hydra
 from omegaconf import DictConfig
-from src.data_handler import get_mnist_dataloaders, DataSet  # DataSet もこちらで定義
+from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders  # DataSet もこちらで定義
 from src.model import VQVAE
 import wandb
+from schedulefree import RAdamScheduleFree
 
 @hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
 def main(cfg: DictConfig):
@@ -18,14 +19,15 @@ def main(cfg: DictConfig):
     # Wandbの設定
     wandb.init(config=dict(cfg.model),
                entity="benzelongji-the-university-of-tokyo",
-               project="2025-8-28-vqvae-mlp")
+               project="2025-9-2-vqvae-mlp",
+               name='dataset-test')
     
-    train_loader, test_loader = get_mnist_dataloaders(cfg.train.batch_size)
+    train_loader, test_loader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', 64)
     
     # モデル、損失関数、最適化手法の定義
     model = MLP(**cfg.model).to(device)
-    # for param in model.vqvae.parameters():
-    #     param.requires_grad = False
+    for param in model.vqvae.parameters():
+        param.requires_grad = False
 
     # パラメータ数の記録
     total_params = sum(
@@ -34,56 +36,36 @@ def main(cfg: DictConfig):
     wandb.config.total_parameters = total_params
 
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
-
-    """
-    モデル内部に移行したためコメントアウト
-    問題なければ消してOK
-
-    # 保存されたモデルのファイルパス
-    model_path = "VQVAE_local.pth"
-    # VQVAEモデルのインスタンスの作成
-
-    vqvae = VQVAE(128, 32, 2, 256, 64, .25)
-    # 保存されたモデルのパラメータをロード
-    checkpoint = torch.load(model_path)
-    vqvae.load_state_dict(checkpoint['param'])
-    # モデルを適切なデバイス（GPUまたはCPU）に移動
-    vqvae = vqvae.to(device)
-    """    
+    # optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate)
+    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+    optimizer = RAdamScheduleFree(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate, weight_decay=cfg.train.weight_decay)
 
     # 学習ループ
     for epoch in range(cfg.train.epochs):
         running_loss = 0.0
         model.train()
+        optimizer.train()
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
-            # _, _, inputs = vqvae(inputs)
-            # 1. viewで元のpermute後の形状に戻す (B, H, W, C)
-            # inputs = inputs.view(-1, cfg.model.input_size)#.float()
-            # inputs = torch.flatten(inputs, start_dim=1)
-            # print(inputs.size())
 
             # 勾配をゼロにリセット
             optimizer.zero_grad()
 
             # 順伝播、誤差計算、逆伝播、パラメータ更新
             outputs = model(inputs)
-            # print(f"outputs shape: {outputs.shape}") 
-            # print(f"labels shape: {labels.shape}")
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item()
-        scheduler.step()
+        # scheduler.step()
 
         print(f'Epoch [{epoch+1}/{cfg.train.epochs}], Loss: {running_loss/len(train_loader):.4f}')
         wandb.log({"loss": running_loss/len(train_loader)})
 
         model.eval()  # モデルを評価モードに設定
+        optimizer.eval()
         correct = 0
         total = 0
 
@@ -92,9 +74,6 @@ def main(cfg: DictConfig):
             for data in test_loader:
                 inputs, labels = data
                 inputs, labels = inputs.to(device), labels.to(device)
-
-                # _, _, inputs = vqvae(inputs)
-                # inputs = inputs.view(-1, cfg.model.input_size)#.float()
 
                 # 予測を行う
                 outputs = model(inputs)
@@ -119,7 +98,7 @@ def main(cfg: DictConfig):
         # 学習済みモデルの保存
     torch.save(model.state_dict(), 'mlp_mnist.pth')
     print('Finished Training')
-    wandb.alert(title="Finished training", text="Finished training")
+    # wandb.alert(title="Finished training", text="Finished training")
 
 
 if __name__ == "__main__":
