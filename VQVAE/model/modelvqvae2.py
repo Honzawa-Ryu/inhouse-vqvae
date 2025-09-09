@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from src.model import VQVAE, VQVAE2
 
-class MLP(nn.Module):
+class MLP2(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
         # MLPのパラメータ
@@ -34,13 +34,13 @@ class MLP(nn.Module):
         self.pool_str = kwargs['pool_stride']
 
         # VQVAEの用意
-        self.vqvae = VQVAE(**kwargs)
+        self.vqvae = VQVAE2(**kwargs)
         
         # pathベタ打ちなの嫌、どうにかならないか
-        checkpoint = torch.load('VQVAE_local.pth', weights_only=True)
+        checkpoint = torch.load('VQVAE2_local.pth', weights_only=True)
         self.vqvae.load_state_dict(checkpoint['param'])
 
-        self.codebook = self.vqvae.vector_quantization.embedding.weight
+        # self.codebook = self.vqvae.vector_quantization.embedding.weight
 
         self.conv = nn.Conv2d(self.vq_emb_dim, self.conv_dim, kernel_size=self.conv_kernel_size, padding=self.conv_pad, stride=self.conv_str)
         self.pool = nn.MaxPool2d(kernel_size=self.pool_kernel_size, stride=self.pool_str)
@@ -63,15 +63,16 @@ class MLP(nn.Module):
 
     def forward(self, x):
         # VQVAEを通し潜在表現を取得
-        emb_loss, x_hat, x_vq = self.vqvae(x)
+        emb_loss, x_hat, *_, x_emb = self.vqvae(x)
         vq_loss = emb_loss + nn.MSELoss()(x, x_hat)
     
-        min_encodings = torch.zeros(x_vq.shape[0], self.vq_n_emb, device=x_vq.device)
-        min_encodings.scatter_(1, x_vq, 1)
-        x = torch.matmul(min_encodings, self.codebook)
+        # min_encodings = torch.zeros(x.shape[0], self.vq_n_emb, device=x.device)
+        # min_encodings.scatter_(1, x, 1)
+        # x = torch.matmul(min_encodings, self.codebook)
         # print(x.shape)
 
-        x = x.view(-1, 64, 64, 64)
+        # 変数名が適当すぎてxの値がわけわかんないことになってる、なんかいい感じにして下さい
+        x = x_emb.view(-1, 64, 64, 64)
         # x = x.view(-1, self.input_size)
         # print(x.shape)
 
