@@ -1,18 +1,5 @@
-model:
-  number_of_layers: 3
-  input_size: 49
-  top_hidden_size: 128
-  bottom_hidden_size: 64
-  output_size: 10
-  embedding_dim: 8
-  vqvae_h_dim: 128
-  vqvae_res_h_dim: 32
-  vqvae_n_res_layers: 2
-  vqvae_n_embeddings: 256
-  vqvae_embedding_dim: 64
-  vqvae_beta: 0.25
-
-train:
-  epochs: 10
-  batch_size: 64
-  learning_rate: 0.001
+defaults:
+- model: model
+- train: train
+- wandb: enable
+- data: hist_class
