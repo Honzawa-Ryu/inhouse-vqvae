@@ -16,6 +16,7 @@ class Trainer:
         self.run = wandb_run
 
     def train(self):
+        codebook_usage_counter = torch.zeros(256, dtype=torch.long, device=self.device)
         for i in tqdm(range(self.epoch, self.max_epochs + 1)):
             train_loss = 0
             train_emb_loss = 0
@@ -24,6 +25,7 @@ class Trainer:
             test_emb_loss = 0
             test_recon_loss = 0
             self.epoch = i
+            # idx_counter = [0 for _ in range(256)]
 
             # 訓練
             self.model.train()
@@ -46,12 +48,22 @@ class Trainer:
             with torch.no_grad():
                 for img_t, _ in self.test_loader:
                     img = img_t.to(self.device, dtype=torch.float)
-                    embedding_loss, x_hat, *_ = self.model(img)
+                    embedding_loss, x_hat, idx = self.model(img)
                     recon_loss = nn.MSELoss()(x_hat, img)
                     loss = recon_loss + embedding_loss
                     test_loss += loss.item()
                     test_emb_loss += embedding_loss.item()
                     test_recon_loss += recon_loss.item()
+                    
+                    idx = idx.flatten()
+                    counter = torch.bincount(idx, minlength=256)
+                    codebook_usage_counter += counter
+                    # for i in range(len(idx)):
+                    #     idx_counter[idx[i]] += 1
+                    # print(idx_counter)
+
+
+
 
             # 損失の記録と表示
             train_loss /= len(self.train_loader.dataset)
@@ -65,5 +77,6 @@ class Trainer:
                           "test_emb_loss": test_emb_loss, "test_recon_loss": test_recon_loss, "test_loss": test_loss})
             self.train_loss_log.append(train_loss)
             self.test_loss_log.append(test_loss)
+            print(codebook_usage_counter)
 
         return self.train_loss_log, self.test_loss_log
