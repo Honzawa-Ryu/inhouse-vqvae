@@ -16,7 +16,7 @@ class Trainer:
         self.run = wandb_run
 
     def train(self):
-        codebook_usage_counter = torch.zeros(256, dtype=torch.long, device=self.device)
+        codebook_usage_counter = torch.zeros(512, dtype=torch.long, device=self.device)
         for i in tqdm(range(self.epoch, self.max_epochs + 1)):
             train_loss = 0
             train_emb_loss = 0
@@ -25,11 +25,10 @@ class Trainer:
             test_emb_loss = 0
             test_recon_loss = 0
             self.epoch = i
-            # idx_counter = [0 for _ in range(256)]
 
             # 訓練
             self.model.train()
-            self.optimizer.train()
+            # self.optimizer.train()
             for img, _ in self.train_loader:
                 img = img.to(self.device, dtype=torch.float)
                 self.optimizer.zero_grad()
@@ -44,7 +43,7 @@ class Trainer:
 
             # 評価
             self.model.eval()
-            self.optimizer.eval()
+            # self.optimizer.eval()
             with torch.no_grad():
                 for img_t, _ in self.test_loader:
                     img = img_t.to(self.device, dtype=torch.float)
@@ -56,14 +55,8 @@ class Trainer:
                     test_recon_loss += recon_loss.item()
                     
                     idx = idx.flatten()
-                    counter = torch.bincount(idx, minlength=256)
+                    counter = torch.bincount(idx, minlength=512)
                     codebook_usage_counter += counter
-                    # for i in range(len(idx)):
-                    #     idx_counter[idx[i]] += 1
-                    # print(idx_counter)
-
-
-
 
             # 損失の記録と表示
             train_loss /= len(self.train_loader.dataset)
