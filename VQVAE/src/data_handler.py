@@ -2,7 +2,8 @@
 import torch
 import torch.nn.functional as F
 from torchvision import datasets, transforms
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, Subset, random_split
+import numpy as np
 
 class DataSet(Dataset):
     def __init__(self, data, transform=False):
@@ -116,79 +117,66 @@ def get_image_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=
 
     return train_loader, val_loader
 
-class ImageOnlyDataset(Dataset):
-    def __init__(self, root_dir, transform=None):
-        self.root_dir = root_dir
-        self.transform = transform
-        self.image_paths = []
+
+def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
+    """
+    指定されたディレクトリから画像データを読み込み、クラスごとに分割された
+    データローダーの辞書を返す関数。モデル解析向け。
+
+    Args:
+        data_dir (str): 画像データが格納されている親ディレクトリのパス。
+                        （例: 'data/class_A', 'data/class_B', ...）
+        batch_size (int): バッチサイズ。
+        image_size (tuple): リサイズ後の画像サイズ (高さ, 幅)。
+
+    Returns:
+        dict: {class_name: DataLoader} の形式の辞書。
+              各DataLoaderはそのクラスの画像データのみを供給する。
+    """
+    # 1. 画像の前処理を定義 (元のコードと同じ)
+    # モデルの学習時と同じ前処理を適用することが重要
+    transform = transforms.Compose([
+        transforms.Resize(image_size),
+        transforms.ToTensor(),
+        # 必要に応じて正規化を有効にしてください
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 3チャンネル画像
+        # transforms.Normalize((0.5,), (0.5,)) # グレースケール画像
+    ])
+
+    # 2. ImageFolderを使用してデータセット全体を一度に読み込み
+    full_dataset = datasets.ImageFolder(root=data_dir, transform=transform)
+    print(f"クラス情報: {full_dataset.class_to_idx}")
+    print(f"合計画像数: {len(full_dataset)}")
+
+    # 3. クラスごとのDataLoaderを格納する辞書を初期化
+    class_loaders = {}
+    torch.manual_seed(42)
+    # 4. 各クラスについてループ処理
+    # .classes属性でクラス名のリストを取得
+    for class_name in full_dataset.classes:
+        # クラス名からクラスのインデックス（ラベル）を取得
+        class_idx = full_dataset.class_to_idx[class_name]
+
+        # データセット全体から、現在のクラスに属するデータのインデックスをすべて見つける
+        # full_dataset.targets には、全画像のラベルがリストとして格納されている
+        indices = np.where(np.array(full_dataset.targets) == class_idx)[0]
         
-        # root_dir内のすべての画像ファイルのパスをリストに格納
-        for subdir in os.listdir(root_dir):
-            subdir_path = os.path.join(root_dir, subdir)
-            if os.path.isdir(subdir_path):
-                for fname in os.listdir(subdir_path):
-                    if fname.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.gif')):
-                        self.image_paths.append(os.path.join(subdir_path, fname))
-
-    def __len__(self):
-        return len(self.image_paths)
-
-    def __getitem__(self, idx):
-        # 指定されたインデックスの画像パスを取得
-        img_path = self.image_paths[idx]
+        # Subsetクラスを使い、特定のインデックスのデータだけを持つサブデータセットを作成
+        subset = Subset(full_dataset, indices)
         
-        # 画像をPillowで読み込む
-        image = Image.open(img_path).convert('RGB') # 適切なチャンネル数に変換
-        
-        # 前処理を適用
-        if self.transform:
-            image = self.transform(image)
-            
-        # ラベルは返さず、画像のみを返す
-        return image
+        print(f"クラス '{class_name}' のデータ数: {len(subset)}")
 
-
-# --- 使用例 ---
-if __name__ == '__main__':
-    # 'data' ディレクトリに 'cat', 'dog' というサブディレクトリがあり、
-    # それぞれにPNG画像が保存されていると仮定
-    DATA_DIRECTORY = 'data'
-    BATCH_SIZE = 32
-
-    # (事前に 'data/cat' と 'data/dog' ディレクトリを作成し、画像を配置しておく必要があります)
-    # 例:
-    # data/
-    # ├── cat/
-    # │   ├── 001.png
-    # │   └── 002.png
-    # └── dog/
-    #     ├── 001.png
-    #     └── 002.png
-
-    # ダミーのディレクトリとファイルを作成して動作確認
-    import os
-    if not os.path.exists('data/cat'): os.makedirs('data/cat')
-    if not os.path.exists('data/dog'): os.makedirs('data/dog')
-    from PIL import Image
-    for i in range(10):
-        Image.new('RGB', (100, 100)).save(f'data/cat/cat_{i}.png')
-        Image.new('RGB', (100, 100)).save(f'data/dog/dog_{i}.png')
-
-
-    try:
-        train_loader, val_loader = get_image_dataloaders(
-            data_dir=DATA_DIRECTORY,
-            batch_size=BATCH_SIZE
+        # このクラス専用のDataLoaderを作成
+        # 解析が目的なので、シャッフル(shuffle=False)は不要
+        loader = DataLoader(
+            subset,
+            batch_size=batch_size,
+            shuffle=True,  # 一部抜け落ちる構成になりそうなのでシャッフルをします、データ数がバッチサイズの整数倍になってくれていないためです
+            num_workers=32,  # 環境に合わせて調整してください
+            pin_memory=True
         )
 
-        # データローダーから1バッチ分のデータを取得してみる
-        images, labels = next(iter(train_loader))
+        # 辞書にクラス名と対応するDataLoaderを格納
+        class_loaders[class_name] = loader
 
-        print(f"\n取得したバッチの形状:")
-        print(f"  画像のテンソル形状: {images.shape}") # -> [batch_size, channels, height, width]
-        print(f"  ラベルのテンソル形状: {labels.shape}")   # -> [batch_size]
-        print(f"  ラベルの例: {labels[:5]}")
-
-    except FileNotFoundError:
-        print(f"エラー: '{DATA_DIRECTORY}' ディレクトリが見つかりません。")
-        print("使用例に記載のディレクトリ構造に従って画像データを配置してください。")
+    return class_loaders
