@@ -6,15 +6,15 @@ Configが長すぎるのでファイル分けするべき
 import torch
 import torch.optim as optim
 from torchvision import datasets, transforms
-from model.model import MLP  # model.pyからMLPクラスをインポート
-from model.modelvqvae2 import MLP2
+from model.model import MLP, MLP2  # model.pyからMLPクラスをインポート
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders  # DataSet もこちらで定義
 from src.model import VQVAE
 from src.utils import init_wandb
 import wandb
 from schedulefree import RAdamScheduleFree
+import os
 
 @hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
 def main(cfg: DictConfig):
@@ -26,7 +26,8 @@ def main(cfg: DictConfig):
     #            entity="benzelongji-the-university-of-tokyo",
     #            project="2025-9-2-vqvae2-mlp",
     #            name='dataset-test')
-    init_wandb(cfg)
+    # init_wandb(cfg)
+    run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, name=cfg.wandb.name, config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True))
     
     train_loader, test_loader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', 64)
     
@@ -43,12 +44,12 @@ def main(cfg: DictConfig):
     total_params = sum(
 	param.numel() for param in model.parameters()
     )
-    wandb.config.total_parameters = total_params
+    # wandb.config.total_parameters = total_params
 
     criterion = torch.nn.CrossEntropyLoss()
-    # optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate)
-    # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
-    optimizer = RAdamScheduleFree(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate, weight_decay=cfg.train.weight_decay)
+    optimizer = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+    # optimizer = RAdamScheduleFree(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate, weight_decay=cfg.train.weight_decay)
  
     # 学習ループ
     for epoch in range(cfg.train.epochs):
@@ -56,7 +57,7 @@ def main(cfg: DictConfig):
         class_loss = 0.0
         recon_loss = 0.0
         model.train()
-        optimizer.train()
+        # optimizer.train()
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
@@ -83,7 +84,7 @@ def main(cfg: DictConfig):
         wandb.log({"loss": running_loss/len(train_loader), "mlp_loss": class_loss/len(train_loader), "vq_loss": recon_loss/len(train_loader)})
 
         model.eval()  # モデルを評価モードに設定
-        optimizer.eval()
+        # optimizer.eval()
         correct = 0
         total = 0
 
@@ -114,13 +115,24 @@ def main(cfg: DictConfig):
         wandb.log({"accuracy": accuracy})
 
         # 学習済みモデルの保存
-    if cfg.train.VQVAE:
-        torch.save(model.state_dict(), 'mlp_mnist.pth')
+    save_directory = '/workspace/inhouse-vqvae/VQVAE/model/mlp'
+    save_path = os.path.join(save_directory, cfg.model.save_name)
 
+    if cfg.train.VQVAE:
+        torch.save(model.state_dict(), save_path)
+        OmegaConf.save(config=cfg, f='config_wandb.yaml')
+        artifact = wandb.Artifact(name=cfg.wandb.artifact_name, metadata=dict(cfg.model), type='model')
+        artifact.add_file(save_path)
+        artifact.add_file('config_wandb.yaml')
+        wandb.log_artifact(artifact)
     else:
         torch.save(model.state_dict(), 'mlp2_mnist.pth')
+
+    
+
     print('Finished Training')
     # wandb.alert(title="Finished training", text="Finished training")
+    wandb.finish()
 
 
 if __name__ == "__main__":
