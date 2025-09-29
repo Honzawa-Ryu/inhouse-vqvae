@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
+import math
 
 class ResidualLayer(nn.Module):
     def __init__(self, in_dim, h_dim, res_h_dim):
@@ -41,6 +42,34 @@ class Encoder(nn.Module):
             nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=1),
             nn.ReLU(),
             nn.Conv2d(h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1),
+            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers)
+        )
+
+    def forward(self, x):
+        return self.conv_stack(x)
+
+class Encoder16(nn.Module):
+    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
+        super().__init__()
+        kernel = 4
+        stride = 2
+        
+        self.conv_stack = nn.Sequential(
+            # 1層目: stride=2 -> 辺の長さが 1/2 に
+            nn.Conv2d(in_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 2層目: stride=2 -> 辺の長さが 1/4 に
+            nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 3層目 (追加): stride=2 -> 辺の長さが 1/8 に
+            nn.Conv2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 4層目 (追加): stride=2 -> 辺の長さが 1/16 に
+            nn.Conv2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 元のコードにあった層。サイズは変えずに特徴を調整
+            nn.Conv2d(h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1),
+            # Residualブロック
             ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers)
         )
 
@@ -88,6 +117,32 @@ class Decoder(nn.Module):
 
     def forward(self, x):
         return self.inverse_conv_stack(x)
+
+class Decoder16(nn.Module):
+    def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
+        super().__init__()
+        kernel = 4
+        stride = 2
+        
+        self.inverse_conv_stack = nn.Sequential(
+            # 入力された潜在表現をまずResidualブロックに通す
+            nn.ConvTranspose2d(in_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1),
+            ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers),
+            # 1層目: 辺の長さが 2倍 に
+            nn.ConvTranspose2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 2層目: 辺の長さが 4倍 に
+            nn.ConvTranspose2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 3層目: 辺の長さが 8倍 に
+            nn.ConvTranspose2d(h_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
+            nn.ReLU(),
+            # 4層目: 辺の長さが 16倍 に
+            nn.ConvTranspose2d(h_dim // 2, 3, kernel_size=kernel, stride=stride, padding=1)
+        )
+
+    def forward(self, x):
+        return self.inverse_conv_stack(x)
     
 
 class FakeDecoder(nn.Module):
@@ -123,6 +178,28 @@ class VQVAE(nn.Module):
         self.pre_quantization_conv = nn.Conv2d(self.h_dim, self.emb_dim, kernel_size=1, stride=1)
         self.vector_quantization = VectorQuantizer(self.n_emb, self.emb_dim, self.beta)
         self.decoder = Decoder(self.emb_dim, self.h_dim, self.n_res, self.res_h_dim)
+
+    def forward(self, x):
+        z_e = self.encoder(x)
+        z_e = self.pre_quantization_conv(z_e)
+        embedding_loss, z_q, _, idx = self.vector_quantization(z_e)
+        x_hat = self.decoder(z_q)
+        return embedding_loss, x_hat, idx
+    
+class VQVAE16(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.h_dim = kwargs['vqvae_h_dim']
+        self.res_h_dim = kwargs['vqvae_res_h_dim']
+        self.n_res = kwargs['vqvae_n_res_layers']
+        self.n_emb = kwargs['vqvae_n_embeddings']
+        self.emb_dim = kwargs['vqvae_embedding_dim']
+        self.beta = kwargs['vqvae_beta']
+
+        self.encoder = Encoder16(3, self.h_dim, self.n_res, self.res_h_dim)
+        self.pre_quantization_conv = nn.Conv2d(self.h_dim, self.emb_dim, kernel_size=1, stride=1)
+        self.vector_quantization = VectorQuantizer(self.n_emb, self.emb_dim, self.beta)
+        self.decoder = Decoder16(self.emb_dim, self.h_dim, self.n_res, self.res_h_dim)
 
     def forward(self, x):
         z_e = self.encoder(x)
