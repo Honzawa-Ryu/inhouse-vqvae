@@ -16,7 +16,7 @@ class Trainer:
         self.run = wandb_run
 
     def train(self):
-        codebook_usage_counter = torch.zeros(512, dtype=torch.long, device=self.device)
+        codebook_usage_counter = torch.zeros(256, dtype=torch.long, device=self.device)
         for i in tqdm(range(self.epoch, self.max_epochs + 1)):
             train_loss = 0
             train_emb_loss = 0
@@ -55,7 +55,7 @@ class Trainer:
                     test_recon_loss += recon_loss.item()
                     
                     idx = idx.flatten()
-                    counter = torch.bincount(idx, minlength=512)
+                    counter = torch.bincount(idx, minlength=256)
                     codebook_usage_counter += counter
 
             # 損失の記録と表示

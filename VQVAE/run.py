@@ -10,12 +10,11 @@ import matplotlib.pyplot as plt
 import hydra
 from omegaconf import DictConfig
 
-from src.model import VQVAE, VQVAE2
+from src.model import VQVAE, VQVAE2, VQVAE16
 from src.trainer import Trainer
-from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders, ImageOnlyDataset  # DataSet もこちらで定義
+from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders  # DataSet もこちらで定義
 from src.utils import plot_loss
 import wandb
-from schedulefree import RAdamScheduleFree
 
 # Start a new wandb run to track this script.
 @hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
@@ -25,6 +24,7 @@ def main(cfg: DictConfig):
         entity="benzelongji-the-university-of-tokyo",
         # Set the wandb project where this run will be logged.
         project="250610_VQVAE_Test",
+        name="small",
         # Configからとってくるようにする、何なら全部
         config={
             "learning_rate": 3e-4,
@@ -51,8 +51,8 @@ def main(cfg: DictConfig):
         model = VQVAE(**cfg.model).to(device)
     else:
         model = VQVAE2(**cfg.model).to(device)
-    # opt = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.5, 0.9))
-    opt = RAdamScheduleFree(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate, weight_decay=cfg.train.weight_decay)
+    opt = optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), weight_decay=0.01)
+    # opt = RAdamScheduleFree(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate, weight_decay=cfg.train.weight_decay)
 
     # Trainer の初期化
     trainer = Trainer(model, opt, device, trainloader, testloader, max_epoch, run)
@@ -68,7 +68,7 @@ def main(cfg: DictConfig):
         torch.save({'param': model.to('cpu').state_dict(),
                     'opt': opt.state_dict(),
                     'epoch': trainer.epoch},
-                    'VQVAE_local.pth')
+                    'VQVAE16_256_64.pth')
     else:
         torch.save({'param': model.to('cpu').state_dict(),
                     'opt': opt.state_dict(),

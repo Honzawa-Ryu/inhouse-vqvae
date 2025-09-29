@@ -6,8 +6,8 @@
 import torch
 import matplotlib.pyplot as plt
 import random  # ランダムな整数を生成するためのライブラリのインポート
-from src.model import VQVAE, VQVAE2
-from src.data_handler import get_mnist_dataloaders, get_image_dataloaders
+from src.model import VQVAE, VQVAE16
+from src.data_handler import get_mnist_dataloaders, get_image_dataloaders, get_class_specific_dataloaders
 from omegaconf import DictConfig
 import hydra
 
@@ -17,10 +17,10 @@ def main(cfg: DictConfig):
     device = 'cuda' if torch.cuda.is_available else 'cpu'
 
     # 保存されたモデルのファイルパス
-    model_path = "VQVAE_local.pth"
+    model_path = "/workspace/inhouse-vqvae/VQVAE/model/vqvae/VQVAE16_wd0.1.pth"
     # VQVAEモデルのインスタンスの作成
 
-    model = VQVAE(**cfg.model)
+    model = VQVAE16(**cfg.model)
     # 保存されたモデルのパラメータをロード
     checkpoint = torch.load(model_path)
     model.load_state_dict(checkpoint['param'])
@@ -28,7 +28,9 @@ def main(cfg: DictConfig):
     model = model.to(device)
 
     # trainloader, testloader = get_mnist_dataloaders(256)
-    trainloader, testloader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', 1024)
+    # trainloader, testloader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', 1024)
+    class_specific_loaders = get_class_specific_dataloaders(data_dir='/workspace/inhouse-vqvae/VQVAE/data/hist_class', batch_size=64, image_size=(256, 256))
+    testloader = class_specific_loaders['mouse_brain']
     # テストデータローダーから最初のバッチを取得し、適切なデバイスに移動
     img_batch = next(iter(testloader))[0].to(device)
     print(img_batch.size())

@@ -4,16 +4,21 @@ top_hidden_size: 128
 bottom_hidden_size: 64
 output_size: 10
 embedding_dim: 64
+
 vqvae_h_dim: 128
 vqvae_res_h_dim: 32
 vqvae_n_res_layers: 2
 vqvae_n_embeddings: 256
 vqvae_embedding_dim: 64
 vqvae_beta: 0.25
-vqvae_path: "VQVAE_local.pth"
+vqvae_downdim: 4
+vqvae_path: "/workspace/inhouse-vqvae/VQVAE/model/vqvae/VQVAE_local_Adam_25.pth"
+
 conv_dim: 512
 conv_kernel_size: 4
 conv_padding: 0
 conv_stride: 1
 pool_kernel_size: 2
 pool_stride: 2
+
+save_name: 'savetest.pth'

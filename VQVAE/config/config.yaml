@@ -1,5 +1,5 @@
 defaults:
-- model: model
-- train: train
-- wandb: enable
-- data: hist_class
+- model: model # モデルのハイパーパラメータ関連
+- train: train # Trainの詳細
+- wandb: enable # Wandb関連
+- data: hist_class # Dataset関連
