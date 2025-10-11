@@ -89,7 +89,7 @@ def get_image_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=
     val_size = len(full_dataset) - train_size
 
     # torch.manual_seedで乱数を固定し、再現性を確保することも可能
-    # torch.manual_seed(42)
+    torch.manual_seed(42)
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
 
     print(f"訓練データ数: {len(train_dataset)}")
