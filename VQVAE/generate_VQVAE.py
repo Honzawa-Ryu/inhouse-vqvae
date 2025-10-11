@@ -4,6 +4,7 @@
 """
 
 import torch
+import wandb
 import matplotlib.pyplot as plt
 import random  # ランダムな整数を生成するためのライブラリのインポート
 from src.model import VQVAE, VQVAE16
@@ -17,15 +18,21 @@ def main(cfg: DictConfig):
     device = 'cuda' if torch.cuda.is_available else 'cpu'
 
     # 保存されたモデルのファイルパス
-    model_path = "/workspace/inhouse-vqvae/VQVAE/model/vqvae/VQVAE16_wd0.1.pth"
+    model_path = "/workspace/inhouse-vqvae/VQVAE/model/vqvae/VQVAE_local.pth"
     # VQVAEモデルのインスタンスの作成
 
     model = VQVAE16(**cfg.model)
     # 保存されたモデルのパラメータをロード
-    checkpoint = torch.load(model_path)
-    model.load_state_dict(checkpoint['param'])
-    # モデルを適切なデバイス（GPUまたはCPU）に移動
+    # checkpoint = torch.load(model_path)
+    # model.load_state_dict(checkpoint['param'])
+    # # モデルを適切なデバイス（GPUまたはCPU）に移動
     model = model.to(device)
+
+    run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project)
+    artifact = run.use_artifact('Art:latest')
+    model_path = artifact.get_entry("savetest.pth").download()
+    checkpoint = torch.load(model_path)
+    model.load_state_dict(checkpoint)
 
     # trainloader, testloader = get_mnist_dataloaders(256)
     # trainloader, testloader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', 1024)
@@ -64,12 +71,12 @@ def main(cfg: DictConfig):
     plt.imshow(origin)
     plt.xticks([])  # x軸の目盛りを非表示
     plt.yticks([])  # y軸の目盛りを非表示
-    plt.text(x=3, y=2, s="original image", c="red")  # テキストラベルの追加
+    plt.text(x=4, y=2, s="original image", c="red", va='bottom')  # テキストラベルの追加
 
     # 出力画像を表示
     plt.subplot(212)
     plt.imshow(pred)
-    plt.text(x=3, y=2, s="output image", c="red")  # テキストラベルの追加
+    plt.text(x=2, y=2, s="output image", c="red", va='bottom')  # テキストラベルの追加
     plt.xticks([])  # x軸の目盛りを非表示
     plt.yticks([])  # y軸の目盛りを非表示
     plt.savefig("/workspace/inhouse-vqvae/VQVAE/results/generate.png")

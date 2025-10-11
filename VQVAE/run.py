@@ -8,7 +8,8 @@ import torch.nn.functional as F
 from torch import optim, nn
 import matplotlib.pyplot as plt
 import hydra
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+import os
 
 from src.model import VQVAE, VQVAE2, VQVAE16
 from src.trainer import Trainer
@@ -20,21 +21,11 @@ import wandb
 @hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
 def main(cfg: DictConfig):
     run = wandb.init(
-        # Set the wandb entity where your project will be logged (generally your team name).
-        entity="benzelongji-the-university-of-tokyo",
-        # Set the wandb project where this run will be logged.
-        project="250610_VQVAE_Test",
-        name="small",
-        # Configからとってくるようにする、何なら全部
-        config={
-            "learning_rate": 3e-4,
-            "architecture": "VQVAE",
-            "dataset": "MNIST",
-            "epochs": 6,
-            "BSZ": 256,
-        },
+        entity=cfg.wandb.entity,
+        project=cfg.wandb.project,
+        name=cfg.wandb.name,
+        config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     )
-
 
     # 設定
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -44,36 +35,41 @@ def main(cfg: DictConfig):
 
     # データローダーの取得
     # trainloader, testloader = get_mnist_dataloaders(batch_size)
-    trainloader, testloader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', batch_size)
+    trainloader, testloader = get_image_dataloaders(cfg.data.data_root, batch_size,)
 
     # モデルの初期化
     if cfg.train.VQVAE:
         model = VQVAE(**cfg.model).to(device)
     else:
         model = VQVAE2(**cfg.model).to(device)
-    opt = optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), weight_decay=0.01)
-    # opt = RAdamScheduleFree(filter(lambda p: p.requires_grad, model.parameters()), lr=cfg.train.learning_rate, weight_decay=cfg.train.weight_decay)
+    opt = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.5, 0.9))
 
     # Trainer の初期化
     trainer = Trainer(model, opt, device, trainloader, testloader, max_epoch, run)
 
     # 学習の実行
-    train_loss_log, test_loss_log = trainer.train()
+    trainer.train()
 
-    # 結果のプロット
-    plot_loss(train_loss_log, test_loss_log)
+    save_directory = '/workspace/inhouse-vqvae/VQVAE/model/vqvae'
+    save_path = os.path.join(save_directory, cfg.model.save_name)
 
     # 最終エポックでモデルを保存 (Trainer クラス内で行うことも可能です)
     if cfg.train.VQVAE:
-        torch.save({'param': model.to('cpu').state_dict(),
-                    'opt': opt.state_dict(),
-                    'epoch': trainer.epoch},
-                    'VQVAE16_256_64.pth')
+        # torch.save({'param': model.to('cpu').state_dict(),
+        #             'opt': opt.state_dict(),
+        #             'epoch': trainer.epoch},
+        #             save_path)
+        torch.save(model.state_dict(), save_path)
+        OmegaConf.save(config=cfg, f='/workspace/inhouse-vqvae/VQVAE/results/train_log/config_wandb.yaml')
+        artifact = wandb.Artifact(name=cfg.wandb.artifact_name, metadata=dict(cfg.model), type='model')
+        artifact.add_file(save_path)
+        artifact.add_file('/workspace/inhouse-vqvae/VQVAE/results/train_log/config_wandb.yaml')
+        wandb.log_artifact(artifact)
     else:
         torch.save({'param': model.to('cpu').state_dict(),
                     'opt': opt.state_dict(),
                     'epoch': trainer.epoch},
-                    'VQVAE2_local.pth')
+                    '/workspace/inhouse-vqvae/VQVAE/model/vqvae/VQVAE2_local.pth')
     
 
 if __name__ == "__main__":

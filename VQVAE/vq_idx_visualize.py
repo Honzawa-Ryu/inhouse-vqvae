@@ -14,9 +14,10 @@ import wandb
 @hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
 def main(cfg: DictConfig):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, name=cfg.wandb.name)
 
     # --- パラメータ設定 ---
-    DATA_DIRECTORY = '/workspace/inhouse-vqvae/VQVAE/data/hist_class'  # 画像データが入ったディレクトリ
+    DATA_DIRECTORY = '/workspace/inhouse-vqvae/VQVAE/data/preprocessed'  # 画像データが入ったディレクトリ
     BATCH_SIZE = 64
     IMAGE_SIZE = (256, 256)
 
@@ -29,17 +30,26 @@ def main(cfg: DictConfig):
 
     # --- モデル解析のループ ---
     model = VQVAE(**cfg.model).to(device)
-    
-    model_path = "/workspace/inhouse-vqvae/VQVAE/model/vqvae/VQVAE_8_64.pth"
-    checkpoint = torch.load(model_path)
-    model.load_state_dict(checkpoint['param'])
-    
+
+    try:
+        artifact = run.use_artifact('TGGATE-Recon:latest')
+        model_path = artifact.get_entry("savetest.pth").download()
+        checkpoint = torch.load(model_path, map_location=device)
+        
+        # モデルの状態辞書が 'param' キーの下に格納されていると仮定してロード
+        # もし状態辞書が直接保存されている場合は model.load_state_dict(checkpoint) を使用してください
+        model.load_state_dict(checkpoint)
+        print(f"モデルを {model_path} から正常にロードしました。")
+    except Exception as e:
+        print(f"モデルのロード中にエラーが発生しました: {e}")
+        return # ロードに失敗した場合は処理を中断
+
     model.eval()
 
     # 辞書のitems()を使って、クラス名とデータローダーを順番に取り出す
     for class_name, data_loader in class_specific_loaders.items():
         print(f"\n--- \"{class_name}\" クラスの解析を開始 ---")
-        codebook_usage_counter = torch.zeros(1, 512, dtype=torch.long, device=device)
+        codebook_usage_counter = torch.zeros(1, cfg.model.vqvae_n_embeddings, dtype=torch.long, device=device)
         idx_bundle = torch.zeros(64, 256, device=device)
         
         # このループでは、指定したクラスの画像だけが順番に出てくる
@@ -49,13 +59,13 @@ def main(cfg: DictConfig):
             
             idx = idx.flatten()
             
-            counter = torch.bincount(idx, minlength=512)
+            counter = torch.bincount(idx, minlength=cfg.model.vqvae_n_embeddings)
             counter = counter.view(1, -1)
             # codebook_usage_counter += counter
             if i == 0:
                 codebook_usage_counter = counter
                 idx_bundle = idx.view(64, 64, 64)
-            elif i == 108:
+            elif idx.size(0) % 64*64 != 64:
                 pass
             else:
                 codebook_usage_counter = torch.cat([codebook_usage_counter, counter], 0)
@@ -65,8 +75,8 @@ def main(cfg: DictConfig):
 
             pass
         print(f"--- \"{class_name}\" クラスの解析が完了 ---")
-        torch.save(codebook_usage_counter, f'/workspace/non-shuffle/8_64/{class_name}.pt')
-        torch.save(idx_bundle, f'/workspace/non-shuffle/8_64/{class_name}idx.pt')
+        torch.save(codebook_usage_counter, f'/workspace/inhouse-vqvae/VQVAE/model/shuffle/tg/{class_name}.pt')
+        torch.save(idx_bundle, f'/workspace/inhouse-vqvae/VQVAE/model/shuffle/tg/{class_name}idx.pt')
 
 if __name__ == "__main__":
     main()
