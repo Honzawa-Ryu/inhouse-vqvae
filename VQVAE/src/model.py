@@ -253,7 +253,7 @@ class VQVAE2(nn.Module):
 # 今後やることとしてはまずエンコーダーの次元を調節可能にすること、三層以上に拡張可能にすること
 
 class MLP(nn.Module):
-    def __init__(self, **kwargs):
+    def __init__(self,run = None, **kwargs):
         super().__init__()
         # MLPのパラメータ
         self.number_of_layers = kwargs['number_of_layers']
@@ -284,8 +284,14 @@ class MLP(nn.Module):
         # VQVAEの用意
         self.vqvae = VQVAE(**kwargs)
         
-        checkpoint = torch.load(self.vqvae_path, weights_only=True)
-        self.vqvae.load_state_dict(checkpoint['param'])
+        if run != None:
+            artifact = run.use_artifact('Art:latest')
+            model_path = artifact.get_entry("savetest.pth").download()
+            checkpoint = torch.load(model_path)
+            self.vqvae.load_state_dict(checkpoint)
+        else:
+            checkpoint = torch.load(self.vqvae_path, weights_only=True)
+            self.vqvae.load_state_dict(checkpoint['param'])
 
         self.codebook = self.vqvae.vector_quantization.embedding.weight
 
