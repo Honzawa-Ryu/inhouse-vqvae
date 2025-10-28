@@ -47,36 +47,42 @@ def main(cfg: DictConfig):
     model.eval()
 
     # 辞書のitems()を使って、クラス名とデータローダーを順番に取り出す
-    for class_name, data_loader in class_specific_loaders.items():
-        print(f"\n--- \"{class_name}\" クラスの解析を開始 ---")
-        codebook_usage_counter = torch.zeros(1, cfg.model.vqvae_n_embeddings, dtype=torch.long, device=device)
-        idx_bundle = torch.zeros(64, 256, device=device)
-        
-        # このループでは、指定したクラスの画像だけが順番に出てくる
-        for i, (images, labels) in enumerate(data_loader):
-            img = images.to(device, dtype=torch.float)
-            *_, idx = model(img)
+    with torch.no_grad():
+        for class_name, data_loader in class_specific_loaders.items():
+            print(f"\n--- \"{class_name}\" クラスの解析を開始 ---")
+            codebook_usage_counter = torch.zeros(1, cfg.model.vqvae_n_embeddings, dtype=torch.long, device=device)
+            idx_bundle = torch.zeros(64, 256, device=device)
             
-            idx = idx.flatten()
-            
-            counter = torch.bincount(idx, minlength=cfg.model.vqvae_n_embeddings)
-            counter = counter.view(1, -1)
-            # codebook_usage_counter += counter
-            if i == 0:
-                codebook_usage_counter = counter
-                idx_bundle = idx.view(64, 64, 64)
-            elif idx.size(0) % 64*64 != 64:
-                pass
-            else:
-                codebook_usage_counter = torch.cat([codebook_usage_counter, counter], 0)
-                idx_bundle = torch.cat([idx_bundle, idx.view(64, 64, 64)], 0)
-            
-            
+            # このループでは、指定したクラスの画像だけが順番に出てくる
+            for i, (images, labels) in enumerate(data_loader):
+                img = images.to(device, dtype=torch.float)
+                *_, idx = model(img)
+                
+                idx = idx.flatten()
+                
+                counter = torch.bincount(idx, minlength=cfg.model.vqvae_n_embeddings)
+                counter = counter.view(1, -1)
+                # codebook_usage_counter += counter
+                if i == 0:
+                    codebook_usage_counter = counter
+                    idx_bundle = idx.view(64, 64, 64)
+                elif idx.size()[0] / (64*64) != 64:
+                    print(codebook_usage_counter)
+                    pass
+                else:
+                    codebook_usage_counter = torch.cat([codebook_usage_counter, counter], 0)
+                    idx_bundle = torch.cat([idx_bundle, idx.view(64, 64, 64)], 0)
 
-            pass
-        print(f"--- \"{class_name}\" クラスの解析が完了 ---")
-        torch.save(codebook_usage_counter, f'/workspace/inhouse-vqvae/VQVAE/model/shuffle/tg/{class_name}.pt')
-        torch.save(idx_bundle, f'/workspace/inhouse-vqvae/VQVAE/model/shuffle/tg/{class_name}idx.pt')
+                pass
+            print(f"--- \"{class_name}\" クラスの解析が完了 ---")
+
+            parent_dir = '/workspace/inhouse-vqvae/VQVAE/model/No-shuffle'
+            save_dir = os.path.join(parent_dir, f'tgtaa{cfg.model.vqvae_n_embeddings}')
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+
+            torch.save(codebook_usage_counter, os.path.join(save_dir, f'{class_name}.pt'))
+            torch.save(idx_bundle, os.path.join(save_dir, f'{class_name}idx.pt'))
 
 if __name__ == "__main__":
     main()
