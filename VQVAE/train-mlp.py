@@ -6,11 +6,10 @@ Configが長すぎるのでファイル分けするべき
 import torch
 import torch.optim as optim
 from torchvision import datasets, transforms
-from model.model import MLP, MLP2  # model.pyからMLPクラスをインポート
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders  # DataSet もこちらで定義
-from src.model import VQVAE
+from src.model import VQVAE, MLP, MLP2
 from src.utils import init_wandb
 import wandb
 from schedulefree import RAdamScheduleFree
@@ -33,7 +32,7 @@ def main(cfg: DictConfig):
     
     # モデル、損失関数、最適化手法の定義
     if cfg.train.VQVAE:
-        model = MLP(**cfg.model).to(device)
+        model = MLP(run, **cfg.model).to(device)
     else:
         model = MLP2(**cfg.model).to(device)
     if cfg.train.frozen:

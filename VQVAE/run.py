@@ -13,7 +13,7 @@ import os
 
 from src.model import VQVAE, VQVAE2, VQVAE16
 from src.trainer import Trainer
-from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders  # DataSet もこちらで定義
+from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders, idx_dataloaders  # DataSet もこちらで定義
 from src.utils import plot_loss
 import wandb
 
@@ -35,7 +35,7 @@ def main(cfg: DictConfig):
 
     # データローダーの取得
     # trainloader, testloader = get_mnist_dataloaders(batch_size)
-    trainloader, testloader = get_image_dataloaders(cfg.data.data_root, batch_size,)
+    trainloader, testloader = idx_dataloaders(cfg.data.data_root, batch_size, sampling_rate=cfg.data.sampling_rate)
 
     # モデルの初期化
     if cfg.train.VQVAE:

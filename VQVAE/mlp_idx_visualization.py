@@ -5,8 +5,7 @@ import matplotlib.pyplot as plt
 import hydra
 from omegaconf import DictConfig
 
-from src.model import VQVAE, VQVAE2
-from model.model import MLP
+from src.model import VQVAE, VQVAE2, MLP
 from src.trainer import Trainer
 from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders, get_class_specific_dataloaders  # DataSet もこちらで定義
 from src.utils import plot_loss
