@@ -117,6 +117,62 @@ def get_image_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=
 
     return train_loader, val_loader
 
+def idx_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=(256, 256), sampling_rate=None):
+    transform = transforms.Compose([
+        transforms.Resize(image_size),
+        transforms.ToTensor(),
+        transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287))
+    ])
+
+    full_dataset = datasets.ImageFolder(root=data_dir, transform=transform)
+    print(f"クラス情報: {full_dataset.class_to_idx}")
+    print(f"元の合計画像数: {len(full_dataset)}")
+
+    if sampling_rate is not None:
+        if not (0.0 < sampling_rate <= 1.0):
+            raise ValueError("Sampling_rateは0.0より大きく1.0以下の値でなければなりません。")
+        
+        num_samples = int(len(full_dataset) * sampling_rate)
+        
+        torch.manual_seed(42)
+        indices = torch.randperm(len(full_dataset))[:num_samples]
+        
+        sampled_dataset = Subset(full_dataset, indices)
+        
+        print(f"サンプリング適用後 ({sampling_rate * 100}%)")
+        print(f"  -> サンプリング後の合計画像数: {len(sampled_dataset)}")
+        dataset_to_split = sampled_dataset
+    else:
+        dataset_to_split = full_dataset
+
+    # 3. データセットを訓練用と検証用に分割
+    # 訓練用のデータ数を計算
+    train_size = int(train_val_split * len(dataset_to_split))
+    # 検証用のデータ数を計算
+    val_size = len(dataset_to_split) - train_size
+
+    # torch.manual_seedで乱数を固定し、再現性を確保することも可能
+    torch.manual_seed(42)
+    train_dataset, val_dataset = random_split(dataset_to_split, [train_size, val_size])
+
+    print(f"訓練データ数: {len(train_dataset)}")
+    print(f"検証データ数: {len(val_dataset)}")
+
+    data_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=32,
+        pin_memory=True
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=32,
+        pin_memory=True
+    )
+    return data_loader, val_loader
 
 def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
     """
@@ -139,7 +195,7 @@ def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
         transforms.Resize(image_size),
         transforms.ToTensor(),
         # 必要に応じて正規化を有効にしてください
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 3チャンネル画像
+        transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287)) # 3チャンネル画像,ここに入れる！
         # transforms.Normalize((0.5,), (0.5,)) # グレースケール画像
     ])
 
@@ -171,7 +227,7 @@ def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
         loader = DataLoader(
             subset,
             batch_size=batch_size,
-            shuffle=True,  # 一部抜け落ちる構成になりそうなのでシャッフルをします、データ数がバッチサイズの整数倍になってくれていないためです
+            shuffle=False,  # 一部抜け落ちる構成になりそうなのでシャッフルをします、データ数がバッチサイズの整数倍になってくれていないためです
             num_workers=32,  # 環境に合わせて調整してください
             pin_memory=True
         )
