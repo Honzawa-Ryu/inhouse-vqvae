@@ -198,8 +198,10 @@ cython_debug/
 /vqvae2/data
 
 # wandb directory
-/wandb/
-/vqvae2/wandb
+wandb/
+config/
+outputs/
 
 # .pth file
 *.pth
+*.pt
