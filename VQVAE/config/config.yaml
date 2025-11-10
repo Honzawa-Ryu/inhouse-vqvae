@@ -2,4 +2,4 @@ defaults:
 - model: model # モデルのハイパーパラメータ関連
 - train: train # Trainの詳細
 - wandb: enable # Wandb関連
-- data: hist_class # Dataset関連
+- data: tg_gate # Dataset関連
