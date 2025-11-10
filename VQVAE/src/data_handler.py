@@ -194,9 +194,7 @@ def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
     transform = transforms.Compose([
         transforms.Resize(image_size),
         transforms.ToTensor(),
-        # 必要に応じて正規化を有効にしてください
         transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287)) # 3チャンネル画像,ここに入れる！
-        # transforms.Normalize((0.5,), (0.5,)) # グレースケール画像
     ])
 
     # 2. ImageFolderを使用してデータセット全体を一度に読み込み

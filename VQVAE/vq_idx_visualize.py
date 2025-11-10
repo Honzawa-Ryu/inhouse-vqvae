@@ -77,7 +77,7 @@ def main(cfg: DictConfig):
             print(f"--- \"{class_name}\" クラスの解析が完了 ---")
 
             parent_dir = '/workspace/inhouse-vqvae/VQVAE/model/No-shuffle'
-            save_dir = os.path.join(parent_dir, f'tgtaa{cfg.model.vqvae_n_embeddings}')
+            save_dir = os.path.join(parent_dir, f'tgtaa_vahadane{cfg.model.vqvae_n_embeddings}')
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
 
