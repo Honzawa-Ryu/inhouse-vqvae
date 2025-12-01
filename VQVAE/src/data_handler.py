@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader, Subset, random_split
 import numpy as np
+from .utils import RandomGammaVolume, RandomGaussianNoise
 
 class DataSet(Dataset):
     def __init__(self, data, transform=False):
@@ -121,7 +122,9 @@ def idx_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=(256, 
     transform = transforms.Compose([
         transforms.Resize(image_size),
         transforms.ToTensor(),
-        transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287))
+        # RandomGammaVolume(p=0.5),
+        # RandomGaussianNoise(p=0.5)
+        # transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287))
     ])
 
     full_dataset = datasets.ImageFolder(root=data_dir, transform=transform)
@@ -194,7 +197,9 @@ def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
     transform = transforms.Compose([
         transforms.Resize(image_size),
         transforms.ToTensor(),
-        transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287)) # 3チャンネル画像,ここに入れる！
+        RandomGammaVolume(p=0.5),
+        RandomGaussianNoise(p=0.5)
+        # transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287)) # 3チャンネル画像,ここに入れる！
     ])
 
     # 2. ImageFolderを使用してデータセット全体を一度に読み込み
@@ -234,3 +239,4 @@ def get_class_specific_dataloaders(data_dir, batch_size, image_size=(256, 256)):
         class_loaders[class_name] = loader
 
     return class_loaders
+
