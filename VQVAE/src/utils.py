@@ -77,3 +77,6 @@ class RandomGammaVolume(object):
             img_new = torch.clamp(img_new, min=0, max=1)
 
         return img_new
+
+
+        

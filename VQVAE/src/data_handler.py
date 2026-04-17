@@ -121,10 +121,12 @@ def get_image_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=
 def idx_dataloaders(data_dir, batch_size, train_val_split=0.8, image_size=(256, 256), sampling_rate=None):
     transform = transforms.Compose([
         transforms.Resize(image_size),
+        # transforms.RandomApply([transforms.GaussianBlur(kernel_size=(5, 9), sigma=(0.1, 5.0))], p=0.3),
+        # transforms.RandomApply([transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),], p=0.3),
         transforms.ToTensor(),
         # RandomGammaVolume(p=0.5),
         # RandomGaussianNoise(p=0.5)
-        # transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287))
+        transforms.Normalize((0.8259633779525757, 0.4840644896030426, 0.6278038620948792), (0.12393593788146973, 0.19072337448596954, 0.15796850621700287))
     ])
 
     full_dataset = datasets.ImageFolder(root=data_dir, transform=transform)

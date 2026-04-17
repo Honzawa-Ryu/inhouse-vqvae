@@ -18,7 +18,7 @@ from src.utils import plot_loss
 import wandb
 
 # Start a new wandb run to track this script.
-@hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
+@hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/02_inhouse-vqvae/VQVAE/config")
 def main(cfg: DictConfig):
     run = wandb.init(
         entity=cfg.wandb.entity,
@@ -50,7 +50,7 @@ def main(cfg: DictConfig):
     # 学習の実行
     trainer.train()
 
-    save_directory = '/workspace/inhouse-vqvae/VQVAE/model/vqvae'
+    save_directory = '/workspace/02_inhouse-vqvae/VQVAE/model/vqvae'
     save_path = os.path.join(save_directory, cfg.model.save_name)
 
     # 最終エポックでモデルを保存 (Trainer クラス内で行うことも可能です)
@@ -60,10 +60,10 @@ def main(cfg: DictConfig):
         #             'epoch': trainer.epoch},
         #             save_path)
         torch.save(model.state_dict(), save_path)
-        OmegaConf.save(config=cfg, f='/workspace/inhouse-vqvae/VQVAE/results/train_log/config_wandb.yaml')
+        OmegaConf.save(config=cfg, f='/workspace/02_inhouse-vqvae/VQVAE/config/config.yaml')
         artifact = wandb.Artifact(name=cfg.wandb.artifact_name, metadata=dict(cfg.model), type='model')
         artifact.add_file(save_path)
-        artifact.add_file('/workspace/inhouse-vqvae/VQVAE/results/train_log/config_wandb.yaml')
+        artifact.add_file('/workspace/02_inhouse-vqvae/VQVAE/config/config.yaml')
         wandb.log_artifact(artifact)
     else:
         torch.save({'param': model.to('cpu').state_dict(),

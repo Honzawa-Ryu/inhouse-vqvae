@@ -8,12 +8,11 @@ embedding_dim: 64
 vqvae_h_dim: 128
 vqvae_res_h_dim: 32
 vqvae_n_res_layers: 2
-vqvae_n_embeddings: 4
+vqvae_n_embeddings: 256
 vqvae_embedding_dim: 64
 vqvae_beta: 0.25
 vqvae_downdim: 4
-vqvae_path: "/workspace/inhouse-vqvae/VQVAE/VQVAE16_256_64.pth"
-
+vqvae_path: "/workspace/02_inhouse-vqvae/VQVAE/VQVAE16_256_64.pth"
 conv_dim: 512
 conv_kernel_size: 4
 conv_padding: 0

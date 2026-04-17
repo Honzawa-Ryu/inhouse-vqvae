@@ -34,7 +34,7 @@ def main(cfg: DictConfig):
     try:
         artifact = run.use_artifact('TGGATE-Recon:latest')
         model_path = artifact.get_entry("savetest.pth").download()
-        checkpoint = torch.load(model_path, map_location=device)
+        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
         
         # モデルの状態辞書が 'param' キーの下に格納されていると仮定してロード
         # もし状態辞書が直接保存されている場合は model.load_state_dict(checkpoint) を使用してください
@@ -77,7 +77,7 @@ def main(cfg: DictConfig):
             print(f"--- \"{class_name}\" クラスの解析が完了 ---")
 
             parent_dir = '/workspace/inhouse-vqvae/VQVAE/model/No-shuffle'
-            save_dir = os.path.join(parent_dir, f'tgtaa_vahadane{cfg.model.vqvae_n_embeddings}')
+            save_dir = os.path.join(parent_dir, f'sence-loss_no-normal_{cfg.model.vqvae_n_embeddings}')
             if not os.path.exists(save_dir):
                 os.makedirs(save_dir)
 

@@ -9,10 +9,10 @@ from torchvision import datasets, transforms
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from src.data_handler import get_mnist_dataloaders, DataSet, get_image_dataloaders  # DataSet もこちらで定義
+from src.data_handler_kari import idx_dataloaders
 from src.model import VQVAE, MLP, MLP2
 from src.utils import init_wandb
 import wandb
-from schedulefree import RAdamScheduleFree
 import os
 
 @hydra.main(config_name="config.yaml", version_base=None, config_path="/workspace/inhouse-vqvae/VQVAE/config")
@@ -26,9 +26,10 @@ def main(cfg: DictConfig):
     #            project="2025-9-2-vqvae2-mlp",
     #            name='dataset-test')
     # init_wandb(cfg)
-    run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, name=cfg.wandb.name, config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True))
+    run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, name="mlp-training", config=OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True))
     
-    train_loader, test_loader = get_image_dataloaders('/workspace/inhouse-vqvae/VQVAE/data/hist_class', 64)
+    target_class_1_folders = ['63431', '63433', '63435', '63438', '63442', '63446', '63450', '63466', '63473', '63477', '63481', '63485', '63489', '63494', '63497', '63501', '63505', '63509', '63513', '63517', '63522', '63526', '63530', '63534', '63538', '63542', '63546', '63550', '63553', '63558', '63562', '63566', '63571', '63575', '63579', '63583', '63587', '63591', '63595', '63598', '63602', '63605', '63609', '63612', '63616', '63620', '63623', '63665', '63669', '63672', '63676', '63680', '63748', '63752', '63756', '63831', '63937', '63684', '63687', '63691', '70929', '63698', '63760', '63763', '63768', '63772', '63777', '63855', '63860', '63865', '71285', '63875', '63941', '63944', '63948', '63952', '63955', '27622', '27624', '27626', '27628', '27630', '27632', '27634', '27636', '27638', '27640', '27642', '27644', '27646', '27651', '27655', '27657', '27660', '27662', '27663', '27665', '27668', '27670', '27672', '27674', '27676', '27678', '27680', '27682', '27684', '27686', '27689', '46720', '46727', '46736', '46740', '46744', '46747', '46750', '46753', '46756', '46758', '46759', '46763', '46765', '46768', '46769', '46772', '46774', '46778', '46781', '46783', '46787', '46789', '46792', '46795', '46797', '46800', '46803', '46806', '46809', '46811', '46815', '46817', '46820', '46823', '46826', '46829', '46831', '46833', '46835', '46839', '46841', '46844']
+    train_loader, test_loader = idx_dataloaders(cfg.data.data_root, class_1_folders=target_class_1_folders, batch_size=cfg.train.batch_size, sampling_rate=cfg.data.sampling_rate)
     
     # モデル、損失関数、最適化手法の定義
     if cfg.train.VQVAE:
@@ -120,7 +121,7 @@ def main(cfg: DictConfig):
     if cfg.train.VQVAE:
         torch.save(model.state_dict(), save_path)
         OmegaConf.save(config=cfg, f='config_wandb.yaml')
-        artifact = wandb.Artifact(name=cfg.wandb.artifact_name, metadata=dict(cfg.model), type='model')
+        artifact = wandb.Artifact(name='VQVAE-MLP', metadata=dict(cfg.model), type='model')
         artifact.add_file(save_path)
         artifact.add_file('config_wandb.yaml')
         wandb.log_artifact(artifact)

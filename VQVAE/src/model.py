@@ -51,28 +51,36 @@ class Encoder(nn.Module):
 class Encoder16(nn.Module):
     def __init__(self, in_dim, h_dim, n_res_layers, res_h_dim):
         super().__init__()
-        kernel = 4
+        kernel = 6
         stride = 2
+        dilation = 1
+        
+        # stride=2 かつ dilation=2 の場合、padding=2 または 3 で調整します
+        p = 2 
         
         self.conv_stack = nn.Sequential(
-            # 1層目: stride=2 -> 辺の長さが 1/2 に
-            nn.Conv2d(in_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=1),
+            # 1層目: stride=2 (1/2サイズ) + dilation=2
+            nn.Conv2d(in_dim, h_dim // 2, kernel_size=kernel, stride=stride, padding=p, dilation=dilation),
             nn.ReLU(),
-            # 2層目: stride=2 -> 辺の長さが 1/4 に
-            nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            
+            # 2層目: stride=2 (1/4サイズ) + dilation=2
+            nn.Conv2d(h_dim // 2, h_dim, kernel_size=kernel, stride=stride, padding=p, dilation=dilation),
             nn.ReLU(),
-            # 3層目 (追加): stride=2 -> 辺の長さが 1/8 に
-            nn.Conv2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            
+            # 3層目: stride=2 (1/8サイズ) + dilation=2
+            nn.Conv2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=p, dilation=dilation),
             nn.ReLU(),
-            # 4層目 (追加): stride=2 -> 辺の長さが 1/16 に
-            nn.Conv2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=1),
+            
+            # 4層目: stride=2 (1/16サイズ) + dilation=2
+            nn.Conv2d(h_dim, h_dim, kernel_size=kernel, stride=stride, padding=p, dilation=dilation),
             nn.ReLU(),
-            # 元のコードにあった層。サイズは変えずに特徴を調整
-            nn.Conv2d(h_dim, h_dim, kernel_size=kernel - 1, stride=stride - 1, padding=1),
+            
+            # 5層目: ここはさらに縮小させないよう、stride=1 で特徴を整える
+            nn.Conv2d(h_dim, h_dim, kernel_size=3, stride=1, padding=1),
+            
             # Residualブロック
             ResidualStack(h_dim, h_dim, res_h_dim, n_res_layers)
         )
-
     def forward(self, x):
         return self.conv_stack(x)
 
@@ -186,6 +194,118 @@ class VQVAE(nn.Module):
         x_hat = self.decoder(z_q)
         return embedding_loss, x_hat, idx
     
+class MaskedConv2d(nn.Conv2d):
+    """
+    未来の情報を参照しないようにマスクをかけた畳み込み層
+    mask_type 'A': 中心画素も隠す（最初の層で使用。自分自身も見てはいけないため）
+    mask_type 'B': 中心画素は見える（2層目以降で使用。前の層の情報は使っていいので）
+    """
+    def __init__(self, mask_type, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.register_buffer('mask', self.weight.data.clone())
+        _, _, kH, kW = self.weight.size()
+        self.mask.fill_(1)
+        
+        # マスクの作成（中心より下、および中心の右側を0にする）
+        yc, xc = kH // 2, kW // 2
+        self.mask[:, :, yc+1:, :] = 0
+        self.mask[:, :, yc, xc+1:] = 0
+        
+        # Type Aなら中心も0にする
+        if mask_type == 'A':
+            self.mask[:, :, yc, xc] = 0
+
+    def forward(self, x):
+        self.weight.data *= self.mask
+        return super().forward(x)
+    
+class GatedResBlock(nn.Module):
+    """
+    Gated PixelCNNの基本ブロック
+    残差結合 + ゲート付き活性化関数
+    """
+    def __init__(self, in_channels, hidden_channels):
+        super().__init__()
+        
+        # 1x1 Convで次元を落とす等の処理を入れることも多いですが、
+        # ここではシンプルかつ強力な構成にします。
+        
+        # 入力を2倍のチャンネルに出力（Tanh用とSigmoid用に分けるため）
+        # Type B: 2層目以降なので自分の位置の情報は使って良い
+        self.conv = MaskedConv2d('B', in_channels, 2 * hidden_channels, kernel_size=3, padding=1, bias=False)
+        
+        # 残差結合後の次元調整用（必要な場合）
+        self.out_conv = nn.Conv2d(hidden_channels, in_channels, kernel_size=1)
+        self.bn = nn.BatchNorm2d(hidden_channels)
+
+    def forward(self, x):
+        residual = x
+        
+        # 1. マスク付き畳み込み
+        x = self.conv(x)
+        
+        # 2. チャンネル方向で2分割 (Val, Gate)
+        val, gate = x.chunk(2, dim=1)
+        
+        # 3. Gated Activation (Tanh * Sigmoid)
+        # Tanhは値を-1~1に正規化、Sigmoidは0~1で「情報の通し具合」を決める
+        x = torch.tanh(val) * torch.sigmoid(gate)
+        
+        # 4. 出力の形を整える
+        x = self.out_conv(x)
+        x = self.bn(x)
+        
+        # 5. 残差結合 (Skip Connection)
+        return x + residual
+    
+class GatedPixelCNN(nn.Module):
+    def __init__(self, num_embeddings, hidden_dim=64, n_layers=10):
+        super().__init__()
+        self.num_embeddings = num_embeddings
+        
+        # 1. Embedding層: 離散的なインデックス(0~511など)を連続ベクトルに変換
+        # 例: インデックス '5' -> [0.1, -0.5, ... 0.9] (長さ hidden_dim)
+        self.embedding = nn.Embedding(num_embeddings, hidden_dim)
+        
+        # 2. 最初の層 (Type A Mask): ここだけは自分の位置を見ない
+        self.first_conv = MaskedConv2d('A', hidden_dim, 2 * hidden_dim, kernel_size=7, padding=3, bias=False)
+        
+        # 3. Gated Residual Blocks の積み重ね
+        self.blocks = nn.ModuleList([
+            GatedResBlock(hidden_dim, hidden_dim) for _ in range(n_layers)
+        ])
+        
+        # 4. 出力層
+        # 最後にReLU -> 1x1 Conv -> ReLU -> 1x1 Conv で出力を整えるのが一般的
+        self.final_layers = nn.Sequential(
+            nn.ReLU(True),
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=1),
+            nn.ReLU(True),
+            nn.Conv2d(hidden_dim, num_embeddings, kernel_size=1) # 最終出力はCodebookサイズ
+        )
+
+    def forward(self, x):
+        # x: [Batch, H, W] (整数インデックス)
+        
+        # Embedding処理
+        x = self.embedding(x)        # -> [Batch, H, W, hidden_dim]
+        x = x.permute(0, 3, 1, 2)    # -> [Batch, hidden_dim, H, W] (PyTorchのConv形式に合わせる)
+        
+        # 最初の層
+        x = self.first_conv(x)
+        val, gate = x.chunk(2, dim=1)
+        x = torch.tanh(val) * torch.sigmoid(gate)
+        
+        # 残差ブロック
+        for block in self.blocks:
+            x = block(x)
+            
+        # 最終出力
+        out = self.final_layers(x) # -> [Batch, num_embeddings, H, W]
+        
+        return out
+
+    
 class VQVAE16(nn.Module):
     def __init__(self, **kwargs):
         super().__init__()
@@ -285,9 +405,10 @@ class MLP(nn.Module):
         self.vqvae = VQVAE(**kwargs)
         
         if run != None:
-            artifact = run.use_artifact('Art:latest')
+            # モデル指定べた書きなの修正する
+            artifact = run.use_artifact('TGGATE-Recon:latest')
             model_path = artifact.get_entry("savetest.pth").download()
-            checkpoint = torch.load(model_path)
+            checkpoint = torch.load(model_path, weights_only=True)
             self.vqvae.load_state_dict(checkpoint)
         else:
             checkpoint = torch.load(self.vqvae_path, weights_only=True)
@@ -342,6 +463,10 @@ class MLP(nn.Module):
         x = self.layers(x)
         # ソフトマックスは損失関数内で計算されるため、ここでは適用しない
         return x, vq_loss
+    
+
+
+
     
 class MLP2(nn.Module):
     def __init__(self, **kwargs):

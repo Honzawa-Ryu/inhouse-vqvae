@@ -1,5 +1,5 @@
-data_root: '/workspace/inhouse-vqvae/VQVAE/data/normalize_vahadane'
+data_root: '/workspace/02_inhouse-vqvae/VQVAE/data/preprocessed_patches/benign_patches'
 num_select_classes: 3
 split_ratio: 0.8
 random_seed: 42
-sampling_rate: 0.025
+sampling_rate: 0.0125

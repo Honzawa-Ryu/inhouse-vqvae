@@ -1,4 +1,7 @@
 entity: benzelongji-the-university-of-tokyo
-project: 251108-TGGATE-taamda-VQVAE
-name: 251108-modeltrain
-artifact_name: TGGATE-Recon
+project: anomaly-detection-vqvae
+name: shionogi-wsi-vqvae
+artifact_name: annomaly-detection-vqvae
+tags:
+  - vqvae
+  - dilated_conv
